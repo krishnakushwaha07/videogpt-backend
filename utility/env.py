@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_HR : int
     ENCODING_ALGO : str
     FRONTEND_URL : str
+    ENVIRONMENT : str = "development"
     REDIRECT_URL : str
 
 
