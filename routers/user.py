@@ -94,7 +94,7 @@ async def callback(req : Request, res : Response, db : AsyncSession = Depends(ge
         value=access_token,
         httponly=True,
         secure=settings.ENVIRONMENT == "production",  # True in production with HTTPS
-        samesite="lax",
+        samesite="none",
         max_age=60 * 60 * 24  # 24 hours
     )
 
