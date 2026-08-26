@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Depends, BackgroundTasks, status, HTTPException
 from utility.helpers import verify_access_token
-from schemas.video import video_link, query
+from schemas.video import video_link, query as QueryRequest
 from utility.aiintegration import save_transcript_vector_db, fetch_transcript
 from model import models
 from db.db import get_db
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
+from db.vecotrdb import vector_store
 
 video_router = APIRouter()
 
@@ -57,12 +58,12 @@ async def get_all_saved_videos(db : AsyncSession = Depends(get_db), user_id = De
 
 
 # get a single video
-@video_router.get("/videos/{video_id}")
+@video_router.get("/{video_id}")
 async def get_a_video(video_id : int, db : AsyncSession = Depends(get_db), user_id = Depends(verify_access_token)):
     try:
         db_res = await db.execute(
             select(models.Video)
-            .filter(models.Video.user_id == video_id)
+            .filter(models.Video.id == video_id)
             )
             
         video = db_res.scalars().first()
@@ -72,22 +73,65 @@ async def get_a_video(video_id : int, db : AsyncSession = Depends(get_db), user_
     except Exception as e:
         print(e)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Something went wrong.Try again later.")
+
+
+    
+# delete a single video
+@video_router.delete("/{video_id}", status_code=status.HTTP_200_OK)
+async def delete_a_video(video_id : int, db : AsyncSession = Depends(get_db), user_id = Depends(verify_access_token)):
+    try:
+        await db.execute(
+            delete(models.Video)
+            .filter(models.Video.id == video_id, models.Video.user_id == user_id)
+            )
+
+        """  # delete the embedding also...
+        await vector_store.(
+            filter={
+                "video_id": int(video_id),
+                "user_id": int(user_id)
+            }
+        ) """
+
+        await db.commit()
+        return {"message" : "Video deleted successfully."}
+  
+    except Exception as e:
+        print(e)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Something went wrong.Try again later.")
     
     
 
 
 @video_router.post("/chat/{video_id}")
-async def get_relevent_text(video_id : int, query : query, user_id = Depends(verify_access_token), db : AsyncSession = Depends(get_db),):
+async def get_relevent_text(
+    video_id: int,
+    request: QueryRequest,
+    user_id=Depends(verify_access_token),
+    db: AsyncSession = Depends(get_db),
+):
 
-    print(query)
-    db_res = await db.execute(
+    try:
+        db_res = await db.execute(
             select(models.Video)
             .filter(models.Video.id == video_id, models.Video.user_id == user_id)
-            )
-                
-    video = db_res.scalars().first()
+        )
 
-    if not video:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="You can not access this resource.")
-    
-    return await fetch_transcript(video_id, query.query, user_id)
+        video = db_res.scalars().first()
+
+        if video is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="You can not access this resource.",
+            )
+
+        return await fetch_transcript(video_id, request.query, user_id)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Something went wrong.Try again later.",
+        )

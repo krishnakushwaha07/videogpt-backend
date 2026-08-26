@@ -32,7 +32,7 @@ async def google_login(request: Request):
 
 # authentication with google.
 @auth_router.get("/auth/google/callback", name="google_callback")
-async def callback(req : Request, res : Response, db : AsyncSession = Depends(get_db)):
+async def callback(req : Request, db : AsyncSession = Depends(get_db)):
 
     # get auth token
     token = await oauth.google.authorize_access_token(req)
@@ -94,8 +94,8 @@ async def callback(req : Request, res : Response, db : AsyncSession = Depends(ge
         value=access_token,
         httponly=True,
         secure=settings.ENVIRONMENT == "production",  # True in production with HTTPS
-        samesite="none",
-        max_age=60 * 60 * 24  # 24 hours
+        samesite= "none" if settings.ENVIRONMENT == "production" else "lax",
+        max_age=60 * 60 * 24 , # 24 hours
     )
 
     return res
@@ -121,8 +121,8 @@ async def logout(res : Response, user_id = Depends(verify_access_token)):
     res.delete_cookie(
         key="access_token",
         httponly=True,
-        secure=True,
-        samesite="lax"
+        secure=settings.ENVIRONMENT == "production",  # True in production with HTTPS
+        samesite= "none" if settings.ENVIRONMENT == "production" else "lax",
     )
 
     return {"message": "Logged out"}

@@ -6,10 +6,10 @@ from utility.env import settings
 
 
 #embedding model
-embeddings = GoogleGenerativeAIEmbeddings(model="gemini-embedding-2",api_key=settings.GEMINI_API_KEY)
+embedding_model = GoogleGenerativeAIEmbeddings(model="gemini-embedding-2",api_key=settings.GEMINI_API_KEY)
 
 vector_store = PGVector(
-    embeddings=embeddings,
+    embeddings=embedding_model,
     connection=settings.DB_URL,
     collection_name="youtube_videos",
     use_jsonb=True,

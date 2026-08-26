@@ -21,7 +21,7 @@ parser = StrOutputParser()
 
 
 # chat model...
-chat_model = ChatGoogleGenerativeAI(model="models/gemini-flash-latest",api_key=settings.GEMINI_API_KEY)
+chat_model = ChatGoogleGenerativeAI(model="gemini-3.5-flash-lite",api_key=settings.GEMINI_API_KEY)
 
 
 async def save_transcript_vector_db(url : str, user_id : int, video_id : int):
@@ -78,16 +78,19 @@ async def fetch_transcript(video_id : int, query : str, user_id : int):
             }
         })
 
-        chain = (
-        {
-            "context": retriever,
-            "question": RunnablePassthrough()
-        }
-        | model_chain
+        # Retrieve documents first and pass their text to the prompt. Passing
+        # the retriever directly can result in the prompt receiving a
+        # retriever object instead of the retrieved transcript content.
+        documents = await retriever.ainvoke(query)
+        context = "\n\n".join(
+            document.page_content for document in documents
         )
 
-        results = await chain.ainvoke(query)
-        return results 
+        print("context")
+        return await model_chain.ainvoke({
+            "context": context,
+            "question": query,
+        })
 
     except Exception as e:
         print(e)
