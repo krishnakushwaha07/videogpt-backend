@@ -9,7 +9,12 @@ from utility.helpers import create_access_token, verify_access_token
 from model import models
 from sqlalchemy import select
 
-from schemas.user import user_response
+from schemas.user import user_response, auth_token
+
+
+
+from datetime import datetime, timedelta, timezone
+import secrets
 
 auth_router = APIRouter()
 
@@ -47,7 +52,11 @@ async def callback(req : Request, db : AsyncSession = Depends(get_db)):
     email = user["email"]
     name = user.get("name")
     picture = user.get("picture")
-        
+
+    # create token for redirect
+    token = secrets.token_urlsafe(32)
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=5)
+
     # Find user in database
     db_res = await db.execute(
         select(models.User)
@@ -62,22 +71,56 @@ async def callback(req : Request, db : AsyncSession = Depends(get_db)):
             name=name,
             email= email,
             google_sub = google_id,
-            profile_link=picture
+            profile_link=picture,
+            token = token,
+            token_expires_at = expires_at
         )
+
         try:
             db.add(user)
             await db.commit()
-            await db.refresh(user)
 
         except Exception as e:
             print(e)
             await db.rollback()
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Something went wrong.Try again later.")
-        
-            
 
+    else:
+        user.token = token
+        user.token_expires_at = expires_at
+        await db.commit()
 
-    # issue access token here
+    
+    return RedirectResponse(
+                f"{settings.REDIRECT_URL}?token={token}"
+            )
+
+    
+
+   
+@auth_router.post("/verify-auth", status_code=status.HTTP_200_OK)
+async def get_current_user(auth_token : auth_token, db : AsyncSession = Depends(get_db)):
+    token = auth_token.token
+
+    db_res = await db.execute(
+                select(models.User).where(
+                models.User.token == token
+            )
+        )
+    user = db_res.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid token"
+        )
+
+    if (not user.token_expires_at or user.token_expires_at <= datetime.now(timezone.utc)):
+        raise HTTPException(
+            status_code=401,
+            detail="Token expired"
+        )
+
     access_token = create_access_token(
     {
         "sub" : str(user.id),
@@ -85,26 +128,16 @@ async def callback(req : Request, db : AsyncSession = Depends(get_db)):
         }
     )
 
-    res = RedirectResponse(
-        settings.REDIRECT_URL
-    )
+    # One-time token → invalidate it
+    user.token = None
+    user.token_expires_at = None
+    await db.commit()
 
-    res.set_cookie(
-        key="access_token",
-        value=access_token,
-        httponly=True,
-        secure=settings.ENVIRONMENT == "production",  # True in production with HTTPS
-        samesite= "none" if settings.ENVIRONMENT == "production" else "lax",
-        max_age=60 * 60 * 24 , # 24 hours
-    )
-
-    return res
-
-    
+    return access_token
 
 
 
-   
+
 @auth_router.get("/me", status_code=status.HTTP_200_OK, response_model=user_response)
 async def get_current_user(user_id = Depends(verify_access_token), db : AsyncSession = Depends(get_db)):
     db_res = await db.execute(
@@ -116,6 +149,8 @@ async def get_current_user(user_id = Depends(verify_access_token), db : AsyncSes
     return user
 
 
+
+# Note* - not useful for now.
 @auth_router.get("/logout")
 async def logout(res : Response, user_id = Depends(verify_access_token)):
     res.delete_cookie(

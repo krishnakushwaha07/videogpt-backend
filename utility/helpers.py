@@ -32,7 +32,15 @@ def create_access_token(data: dict) -> str:
 async def verify_access_token(req : Request, db : AsyncSession = Depends(get_db)) -> int:
     """Returns user_id after verifying JWT token."""
 
-    token = req.cookies.get("access_token")
+    authorization = req.headers.get("Authorization")
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Unauthorized access")
+
+    token = authorization.split("Bearer ")[1]
+
+    if not token:
+        raise HTTPException(status_code=401, detail="Unauthorized access")
+
     try:
         payload = jwt.decode(
             token,

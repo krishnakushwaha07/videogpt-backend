@@ -6,9 +6,3 @@ health_router = APIRouter()
 async def health_check():
     return "Server is running fine :)"
 
-
-@health_router.get("/debug-cookie")
-async def debug_cookie(request: Request):
-    return {
-        "cookies": request.cookies
-    }
