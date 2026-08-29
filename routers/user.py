@@ -12,7 +12,6 @@ from sqlalchemy import select
 from schemas.user import user_response, auth_token
 
 
-
 from datetime import datetime, timedelta, timezone
 import secrets
 
