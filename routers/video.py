@@ -6,7 +6,7 @@ from model import models
 from db.db import get_db
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
-from db.vecotrdb import vector_store
+from utility.helpers import get_yt_video_id
 
 video_router = APIRouter()
 
@@ -19,7 +19,7 @@ async def get_video_link(url : video_link, background_tasks: BackgroundTasks, db
 
     # save video in db
     video = models.Video(
-        video_link=url,
+        video_link=get_yt_video_id(url),
         user_id=user_id
     )
 

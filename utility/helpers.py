@@ -5,8 +5,9 @@ import jwt
 
 from db.db import get_db
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from model import models
+
+
+from urllib.parse import urlparse, parse_qs
 
 
 # function to create access token
@@ -56,3 +57,11 @@ async def verify_access_token(req : Request, db : AsyncSession = Depends(get_db)
 
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Unauthorized access")
+
+
+
+    
+# get the yt_video_id 
+def get_yt_video_id(url: str) -> str:
+    "Give the url of the yt video and get the video id."
+    return parse_qs(urlparse(url).query)["v"][0]

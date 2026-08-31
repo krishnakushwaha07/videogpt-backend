@@ -2,10 +2,9 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import PromptTemplate
-from langchain_core.runnables import RunnablePassthrough
 from utility.env import settings
 
-from utility.transcript import get_yt_video_transcript
+from utility.transcript import get_yt_video_transcript, get_yt_video_caption
 from db.vecotrdb import vector_store
 from fastapi import HTTPException, status
 
@@ -26,11 +25,18 @@ chat_model = ChatGoogleGenerativeAI(model="gemini-3.5-flash-lite",api_key=settin
 
 async def save_transcript_vector_db(url : str, user_id : int, video_id : int):
     try:
-        # load the transcript of the video.
-        transcript =  await get_yt_video_transcript(url, user_id, video_id)
+        # load the captions of the video.
+        captions =  await get_yt_video_caption(url, user_id, video_id)
+
+        if captions:
+            final_transcript = captions 
+        else:
+            # if captions are not available use transcript
+            final_transcript = await get_yt_video_transcript(url, user_id, video_id)
+
 
         # splite the transcript in chunks.
-        split_docs = splitter.split_documents(transcript)
+        split_docs = splitter.split_documents(final_transcript)
 
         await vector_store.aadd_documents(split_docs)
     except Exception as e:

@@ -145,6 +145,10 @@ async def get_current_user(user_id = Depends(verify_access_token), db : AsyncSes
         )
                 
     user = db_res.scalars().first()
+
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Use not found.")
+    
     return user
 
 
